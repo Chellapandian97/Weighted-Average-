@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Weighted Average Fat & SNF Calculator</title>
+<style>
+:root{--navy:#15344d;--blue:#1769aa;--bg:#f2f5f9;--line:#dbe3ec;--muted:#64748b}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;min-height:100%;font-family:Arial,Helvetica,sans-serif;color:#172433;background:var(--bg)}
+body{padding:0 0 24px}
+header{background:var(--navy);color:white;padding:18px 14px 16px}
+header h1{font-size:21px;line-height:1.2;margin:0 0 6px}
+header p{font-size:13px;line-height:1.4;margin:0;color:#d9e8f5}
+main{width:100%;max-width:650px;margin:0 auto}
+.panel{padding:12px 10px;background:white}
+.row{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr) 30px;gap:6px;align-items:center}
+.labels{padding:3px 0 8px;color:#506277;font-size:12px;font-weight:700}
+.labels div{text-align:center}
+.entry{padding:7px 0;border-top:1px solid #edf1f5}
+input{display:block;width:100%;min-width:0;height:46px;padding:0 5px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#172433;text-align:center;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;appearance:textfield}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input:focus{outline:2px solid #9cc9f2;border-color:var(--blue)}
+.remove{height:34px;width:30px;border:0;border-radius:7px;background:#fff0f0;color:#a12828;font-size:21px;line-height:1;padding:0}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:15px}
+.metric{min-width:0;border:1px solid var(--line);border-radius:10px;padding:12px 9px;background:#fbfdff}
+.metric.total{grid-column:1/-1}
+.metric span{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.metric strong{display:block;font-size:23px;color:var(--navy);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:13px}
+button.action{min-height:44px;border:0;border-radius:8px;padding:10px 8px;font-size:14px;font-weight:700}
+.primary{background:var(--blue);color:white}
+.secondary{background:#e8eef5;color:#20364d}
+.status{font-size:12px;color:#a12828;min-height:16px;margin-top:8px}
+.note{font-size:12px;line-height:1.45;color:var(--muted);margin:12px 1px 0}
+@media(min-width:520px){header{border-radius:14px 14px 0 0;margin-top:18px;padding:22px}.panel{padding:18px}.row{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) 34px;gap:10px}.labels{font-size:13px}.entry{padding:8px 0}input{height:44px}.remove{width:34px}}
+@media print{body{background:white}.actions,.remove{display:none}header{background:white;color:black;padding:10px}header p{color:#444}.panel{padding:8px}.metric{break-inside:avoid}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>Weighted Average Fat & SNF</h1>
+<p>Enter each lot's weight in kg, Fat % and SNF %. Results update automatically.</p>
+</header>
+<section class="panel">
+  <div class="row labels" aria-hidden="true">
+    <div>Weight (kg)</div><div>Fat %</div><div>SNF %</div><div></div>
+  </div>
+  <div id="rows"></div>
+  <div class="actions">
+    <button class="action primary" id="add" type="button">+ Add row</button>
+    <button class="action secondary" id="clear" type="button">Clear all</button>
+    <button class="action secondary" id="print" type="button">Print results</button>
+  </div>
+  <div class="summary" aria-live="polite">
+    <div class="metric total"><span>Total weight</span><strong id="total">0 kg</strong></div>
+    <div class="metric"><span>Weighted average Fat</span><strong id="fatAvg">— %</strong></div>
+    <div class="metric"><span>Weighted average SNF</span><strong id="snfAvg">— %</strong></div>
+  </div>
+  <div class="status" id="status" role="status"></div>
+  <p class="note"><b>Calculation:</b> Σ (weight × percentage) ÷ total weight. Empty rows are ignored. Results are shown to 2 decimal places.</p>
+</section>
+</main>
+<script>
+const rowsEl=document.getElementById('rows');
+function addRow(){
+  const row=document.createElement('div');
+  row.className='row entry';
+  row.innerHTML='<div><input type="number" min="0" step="any" inputmode="decimal" aria-label="Weight in kg" placeholder="kg"></div>'+
+    '<div><input type="number" min="0" step="any" inputmode="decimal" aria-label="Fat percentage" placeholder="Fat"></div>'+
+    '<div><input type="number" min="0" step="any" inputmode="decimal" aria-label="SNF percentage" placeholder="SNF"></div>'+
+    '<button class="remove" type="button" aria-label="Remove row">×</button>';
+  row.querySelectorAll('input').forEach(input=>{
+    input.addEventListener('input',calculate);
+    input.addEventListener('keydown',event=>{
+      if(event.key==='Enter'){
+        event.preventDefault();
+        const all=[...rowsEl.querySelectorAll('input')],current=all.indexOf(input);
+        if(current===all.length-1){const newRow=addRow();newRow.querySelector('input').focus();}
+        else all[current+1].focus();
+      }
+    });
+  });
+  row.querySelector('.remove').addEventListener('click',()=>{
+    row.remove();
+    if(!rowsEl.children.length)addRow();
+    calculate();
+  });
+  rowsEl.appendChild(row);
+  return row;
+}
+function val(input){const s=input.value.trim();return s===''?0:Number(s)}
+function fmt(n){return n.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function calculate(){
+  let total=0,fatSum=0,snfSum=0,invalid=false;
+  rowsEl.querySelectorAll('.entry').forEach(row=>{
+    const ins=[...row.querySelectorAll('input')];
+    if(ins.some(i=>i.value.trim()!==''&&(!Number.isFinite(Number(i.value))||Number(i.value)<0)))invalid=true;
+    const w=val(ins[0]),f=val(ins[1]),s=val(ins[2]);
+    if(w>0){total+=w;fatSum+=w*f;snfSum+=w*s}
+  });
+  document.getElementById('total').textContent=fmt(total)+' kg';
+  document.getElementById('fatAvg').textContent=total?fmt(fatSum/total)+' %':'— %';
+  document.getElementById('snfAvg').textContent=total?fmt(snfSum/total)+' %':'— %';
+  document.getElementById('status').textContent=invalid?'Please enter valid non-negative numbers.':'';
+}
+document.getElementById('add').addEventListener('click',()=>{const r=addRow();r.querySelector('input').focus();calculate()});
+document.getElementById('clear').addEventListener('click',()=>{rowsEl.innerHTML='';addRow();addRow();calculate();rowsEl.querySelector('input').focus()});
+document.getElementById('print').addEventListener('click',()=>window.print());
+addRow();addRow();calculate();
+</script>
+</body>
+</html>
